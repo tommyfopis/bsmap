@@ -1,20 +1,6 @@
 /*
  Core.js - part of bsmap
-
  Copyright (c) 2016 by Konstantin Kushnir <chpock@gmail.com>
-
- This program is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 /* jslint browser:true */
 // disable error in "use strict"; function
@@ -34,14 +20,6 @@ App.Core = function (){
     })
   };
 
-/* Stamen Toner tiles is not https :(
-    'Stamen Toner': L.tileLayer('http://{s}.tile.stamen.com/toner/{z}/{x}/{y}.png', {
-      attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a> &mdash; Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',
-      subdomains: 'abcd',
-      minZoom: 0,
-      maxZoom: 20
-    }) */
-
   if ($.localStorage.isSet('map') && !$.localStorage.isEmpty('map')) {
     try {
       center = $.localStorage.get('map')['center'];
@@ -55,7 +33,8 @@ App.Core = function (){
   }
 
   if (!center) {
-    $.getJSON("http://ip-api.com/json/?callback=?", (function(self){
+    // Note: Switched to HTTPS for ip-api.com
+    $.getJSON("https://ip-api.com/json/?callback=?", (function(self){
       return function(data) {
         if (data && data.lat && data.lon && self.map) self.map.flyTo([data.lat, data.lon]);
       };
@@ -399,87 +378,80 @@ App.extend(App.Core, {
         self.panel.input_address.focus();
       };
     })(this), 100);
-
-//    this.map.fitBounds([
-//      [place.geometry.viewport.getSouthWest().lat(),place.geometry.viewport.getSouthWest().lng()],
-//      [place.geometry.viewport.getNorthEast().lat(),place.geometry.viewport.getNorthEast().lng()]
-//    ]);
   },
-lookupRegion: function () {
-  // Отримуємо дані з полів вводу
-  var lac = parseInt($('.tab-panel-input-lac').val(), 10);
-  var cid = parseInt($('.tab-panel-input-cid').val(), 10);
-  var mnc = parseInt($('.tab-panel-region-oper:checked').val(), 10);
-  var mcc = 255; // Mobile Country Code для України
+  lookupRegion: function () {
+    var lac = parseInt($('.tab-panel-input-lac').val(), 10);
+    var cid = parseInt($('.tab-panel-input-cid').val(), 10);
+    var mnc = parseInt($('.tab-panel-region-oper:checked').val(), 10);
+    var mcc = 255; 
 
-  // --- Перевірка введених даних (залишаємо як було) ---
-  if (isNaN(lac) || lac < 1 || lac > 65535) {
-    noty({ text: 'Некоректне значення LAC (1-65535).', type: 'error', timeout: 5000, layout: 'bottomCenter', theme: 'bsmap' });
-    this.panel._lookupRegionStop($('.tab-panel-input-lac')[0]);
-    return;
-  }
-  if (isNaN(cid) || cid < 1 || cid > 268435455) { // CID може бути більшим для 4G
-    noty({ text: 'Некоректне значення CID.', type: 'error', timeout: 5000, layout: 'bottomCenter', theme: 'bsmap' });
-    this.panel._lookupRegionStop($('.tab-panel-input-cid')[0]);
-    return;
-  }
-  if (isNaN(mnc)) {
-    noty({ text: 'Будь ласка, виберіть оператора.', type: 'error', timeout: 5000, layout: 'bottomCenter', theme: 'bsmap' });
-    return;
-  }
-  
-  // --- Формуємо та виконуємо запит до OpenCelliD ---
-  var self = this;
-  var apiKey = "pk.8f3b23abe9fc85acfe1de224c95e6cd5"; // ВАШ КЛЮЧ
-  
-  var data = {
-      token: apiKey,
-      radio: 'gsm', // або 'lte' для 4G, для простоти залишаємо gsm
-      mcc: mcc,
-      mnc: mnc,
-      cells: [{
-          lac: lac,
-          cid: cid
-      }],
-      address: 1
-  };
-
-  $.ajax({
-    url: "https://us1.unwiredlabs.com/v2/process.php",
-    type: "POST",
-    data: JSON.stringify(data),
-    contentType: "application/json; charset=utf-8",
-    dataType: 'json',
-    context: this,
-    cache: false,
-    success: function(response) {
-      if (response.status === "ok" && response.balance > 0) {
-        var location = L.latLng([response.lat, response.lon]);
-        self.map.flyTo(location, 15); // Перелітаємо на знайдену точку
-        
-        // Створюємо новий об'єкт на карті
-        self.collection.region.new({
-          color: self.panel.colorpicker_region.getColor(),
-          lac: lac,
-          cid: cid,
-          mnc: mnc,
-          mcc: mcc,
-          location_g: location, // Зберігаємо координати
-          initial: true,
-          title: response.address // Додаємо знайдену адресу як назву
-        });
-
-      } else {
-        // Обробка помилок від OpenCelliD
-        var errorMessage = response.message || 'Вежу не знайдено в базі даних OpenCelliD.';
-        noty({ text: errorMessage, type: 'error', timeout: 5000, layout: 'bottomCenter', theme: 'bsmap' });
-      }
-    },
-    error: function(jqXHR, status, error) {
-      noty({ text: 'Помилка запиту до OpenCelliD: ' + status, type: 'error', timeout: 5000, layout: 'bottomCenter', theme: 'bsmap' });
-    },
-    complete: function(){
-      self.panel._lookupRegionStop(); // Зупиняємо анімацію кнопки пошуку
+    if (isNaN(lac) || lac < 1 || lac > 65535) {
+      noty({ text: 'Некоректне значення LAC (1-65535).', type: 'error', timeout: 5000, layout: 'bottomCenter', theme: 'bsmap' });
+      this.panel._lookupRegionStop($('.tab-panel-input-lac')[0]);
+      return;
     }
-  });
-},
+    if (isNaN(cid) || cid < 1 || cid > 268435455) {
+      noty({ text: 'Некоректне значення CID.', type: 'error', timeout: 5000, layout: 'bottomCenter', theme: 'bsmap' });
+      this.panel._lookupRegionStop($('.tab-panel-input-cid')[0]);
+      return;
+    }
+    if (isNaN(mnc)) {
+      noty({ text: 'Будь ласка, виберіть оператора.', type: 'error', timeout: 5000, layout: 'bottomCenter', theme: 'bsmap' });
+      return;
+    }
+    
+    var self = this;
+    var apiKey = "pk.8f3b23abe9fc85acfe1de224c95e6cd5";
+    
+    var data = {
+        token: apiKey,
+        radio: 'gsm',
+        mcc: mcc,
+        mnc: mnc,
+        cells: [{
+            lac: lac,
+            cid: cid
+        }],
+        address: 1
+    };
+
+    $.ajax({
+      url: "https://us1.unwiredlabs.com/v2/process.php",
+      type: "POST",
+      data: JSON.stringify(data),
+      contentType: "application/json; charset=utf-8",
+      dataType: 'json',
+      context: this,
+      cache: false,
+      success: function(response) {
+        if (response.status === "ok" && response.balance > 0) {
+          var location = L.latLng([response.lat, response.lon]);
+          self.map.flyTo(location, 15);
+          
+          self.collection.region.new({
+            color: self.panel.colorpicker_region.getColor(),
+            lac: lac,
+            cid: cid,
+            mnc: mnc,
+            mcc: mcc,
+            location_g: location,
+            initial: true,
+            title: response.address
+          });
+
+        } else {
+          var errorMessage = response.message || 'Вежу не знайдено в базі даних OpenCelliD.';
+          noty({ text: errorMessage, type: 'error', timeout: 5000, layout: 'bottomCenter', theme: 'bsmap' });
+        }
+      },
+      error: function(jqXHR, status, error) {
+        noty({ text: 'Помилка запиту до OpenCelliD: ' + status, type: 'error', timeout: 5000, layout: 'bottomCenter', theme: 'bsmap' });
+      },
+      complete: function(){
+        self.panel._lookupRegionStop();
+      }
+    });
+  }
+});
+
+App.core = new App.Core();
