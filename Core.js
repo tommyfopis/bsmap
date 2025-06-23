@@ -28,12 +28,9 @@ App.Core = function (){
   $('#map')[0].style['background-image'] = 'url(images/background.png)';
 
   this.layers = {
-    //'Яндекс': new L.Yandex(),
-    'Visicom': new L.TileLayer(this.remoteProtocol + 'tms{s}.visicom.ua/2.0.0/planet3/base_ru/{z}/{x}/{y}.png',{
+    'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      tms: true,
-      attribution: 'Данные компании © <a href="http://visicom.ua/">Визиком</a>',
-      subdomains: '123'
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     })
   };
 
@@ -82,7 +79,7 @@ App.Core = function (){
       click: this.delayExecFunc('buildbs', this.buildBS_onClick, 250, this),
       dblclick: this.cancelExecFunc('buildbs')
     }, this)
-    .addLayer(this.layers['Visicom'])
+    .addLayer(this.layers['OpenStreetMap'])
     .addControl(new L.Control.Zoom({ position: "bottomleft" }));
 
   this.map_control_layers = new L.Control.Layers(this.layers);
